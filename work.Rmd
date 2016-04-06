@@ -5,17 +5,96 @@ date: "April 1, 2016"
 output: html_document
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Economic and Public Health Impact By Extreme Weather Events
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## Synopsis
+
+## Loading and cleaning raw data
 
 ```{r}
 # Downloading data if not exists
-# 
-
 if (!file.exists("stormdata.csv.bz2")) {
   download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", "stormdata.csv.bz2")
 }
 stormdata <- read.csv("stormdata.csv.bz2")
+
+# Applying exponents
+stormdata[stormdata$PROPDMGEXP == 'H',]$PROPDMG <- stormdata[stormdata$PROPDMGEXP == 'H',]$PROPDMG * 10^2
+stormdata[stormdata$PROPDMGEXP == 'K',]$PROPDMG <- stormdata[stormdata$PROPDMGEXP == 'K',]$PROPDMG * 10^3
+stormdata[stormdata$PROPDMGEXP == 'M',]$PROPDMG <- stormdata[stormdata$PROPDMGEXP == 'M',]$PROPDMG * 10^6
+stormdata[stormdata$PROPDMGEXP == 'B',]$PROPDMG <- stormdata[stormdata$PROPDMGEXP == 'B',]$PROPDMG * 10^9
+
+stormdata[stormdata$CROPDMGEXP == 'H',]$CROPDMG <- stormdata[stormdata$CROPDMGEXP == 'H',]$CROPDMG * 10^2
+stormdata[stormdata$CROPDMGEXP == 'K',]$CROPDMG <- stormdata[stormdata$CROPDMGEXP == 'K',]$CROPDMG * 10^3
+stormdata[stormdata$CROPDMGEXP == 'M',]$CROPDMG <- stormdata[stormdata$CROPDMGEXP == 'M',]$CROPDMG * 10^6
+stormdata[stormdata$CROPDMGEXP == 'B',]$CROPDMG <- stormdata[stormdata$CROPDMGEXP == 'B',]$CROPDMG * 10^9
+
+# Creating aggregated heath damage column (injuries + fatalities)
+stormdata$HEALTHDMG <- stormdata$FATALITIES + stormdata$INJURIES
+
+# Adding year column
+stormdata$YEAR <- as.integer(format(as.Date(stormdata$BGN_DATE, "%m/%d/%Y"), "%Y"))
 ```
+
+#### Checking avilibity of data
+
+```{r}
+options(scipen=5)
+hist(stormdata$YEAR, xlab = "Year", ylab = "Frequency of events", main = "Distribution of logged events between 1950 and 2010", breaks=24, col = "lightblue")
+```
+
+This plot shows that most of the data was logged between 1995 and 2010. This time period will be used For further analysis.
+
+
+
+#### What type of events caused the most fatalities and injuries (1995-2010)
+```{r}
+stormdata95 <- stormdata[stormdata$YEAR >= 1995,]
+
+healthDamageByEvent <- aggregate(HEALTHDMG ~ EVTYPE, stormdata95, FUN=sum)
+healthDamageByEvent <- healthDamageByEvent[rev(order(healthDamageByEvent$HEALTHDMG)),]
+healthDamageByEvent$EVTYPE <- factor(healthDamageByEvent$EVTYPE, levels = healthDamageByEvent$EVTYPE)
+
+fatalitiesByEvent <- aggregate(FATALITIES ~ EVTYPE, stormdata95, FUN=sum)
+fatalitiesByEvent <- fatalitiesByEvent[rev(order(fatalitiesByEvent$FATALITIES)),]
+fatalitiesByEvent$EVTYPE <- factor(fatalitiesByEvent$EVTYPE, levels = fatalitiesByEvent$EVTYPE)
+
+injuriesByEvent <- aggregate(INJURIES ~ EVTYPE, stormdata95, FUN=sum)
+injuriesByEvent <- injuriesByEvent[rev(order(injuriesByEvent$INJURIES)),]
+injuriesByEvent$EVTYPE <- factor(injuriesByEvent$EVTYPE, levels = injuriesByEvent$EVTYPE)
+```
+#### Top 10 events caused health damage (general damage/injuries/fatalities)
+```{r}
+# Health damage:
+print(head(healthDamageByEvent, 10), row.names = FALSE)
+# Fatalities:
+print(head(fatalitiesByEvent, 10), row.names = FALSE)
+# Injuries:
+print(head(injuriesByEvent, 10), row.names = FALSE)
+```
+
+
+#### Combined comparison of fatal and non-fatal injuries
+```{r}
+library(ggplot2)
+topNCause <- 10
+
+fatalitiesThreshold = fatalitiesByEvent[topNCause,]$FATALITIES
+injuriesThreshold = injuriesByEvent[topNCause,]$INJURIES
+
+injuries <- injuriesByEvent[injuriesByEvent$INJURIES >= injuriesThreshold,]$EVTYPE
+fatalities <- fatalitiesByEvent[fatalitiesByEvent$FATALITIES >= fatalitiesThreshold,]$EVTYPE
+combined <- unique(unlist(list(injuries, fatalities)))
+
+healthDamagePlot <- merge(x=injuriesByEvent[injuriesByEvent$EVTYPE %in% combined,], y=fatalitiesByEvent[fatalitiesByEvent$EVTYPE %in% combined,], by="EVTYPE")
+healthDamagePlot <- healthDamagePlot[rev(order(healthDamagePlot$INJURIES)),]
+
+ggplot(healthDamagePlot, aes(EVTYPE)) + geom_bar(aes(y=FATALITIES+INJURIES), stat="identity", fill = "darkorange") + geom_bar(aes(y=FATALITIES), stat="identity", fill = "darkred") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Event Type") + ylab("Fatalities + Injuries") + ggtitle("Fatalities and injuries caused by various event types (1995-2010)")
+
+```
+
+
+
+## Results
+
 
