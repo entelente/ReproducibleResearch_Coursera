@@ -1,5 +1,5 @@
 ---
-title: "Reproducible Research Assignment"
+title: "Reproducible Research Assignment - Economic and Public Health Impact By Extreme Weather Events"
 author: "Janos Strasszer"
 date: "April 1, 2016"
 output: html_document
@@ -7,9 +7,41 @@ output: html_document
 
 # Economic and Public Health Impact By Extreme Weather Events
 
-## Synopsis
+## Preface
+This analysis was created for Reproducible Research Coursre course. All the data used in the analysis is publicly available and automatically downloaded by the provided scripts.
 
-## Loading and cleaning raw data
+## Synopsis
+Various weather events could cause significant damage in human health and properties also.
+This analysis answers the following questions:
+
+### Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+Top 3 events that cause the most injuries:
+1. Tornado
+2. Flood
+3. Excessive heat
+
+Top 3 events that cause the most fatalities:
+1. Excessive heat
+2. Tornado
+3. Flash flood
+
+### Across the United States, which types of events have the greatest economic consequences?
+
+Top 3 events that cause the most property damage:
+1. Flood
+2. Hurricane/Typhoon
+3. Storm surge
+
+Top 3 events that cause the most crop damage:
+1. Drought
+2. Flood
+3. Hurricane
+
+
+## Data processing
+
+The data used in this publication was downloaded from the NOAA Storm Database.
 
 ```{r}
 # Downloading data if not exists
@@ -17,6 +49,8 @@ if (!file.exists("stormdata.csv.bz2")) {
   download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", "stormdata.csv.bz2")
 }
 stormdata <- read.csv("stormdata.csv.bz2")
+
+# Property and Crop damages should be multiplied by the provided exponenents. (E.g. 2.5k = 2.5 * 1000 = 2500)
 
 # Applying exponents
 stormdata[stormdata$PROPDMGEXP == 'H',]$PROPDMG <- stormdata[stormdata$PROPDMGEXP == 'H',]$PROPDMG * 10^2
@@ -36,7 +70,7 @@ stormdata$HEALTHDMG <- stormdata$FATALITIES + stormdata$INJURIES
 stormdata$YEAR <- as.integer(format(as.Date(stormdata$BGN_DATE, "%m/%d/%Y"), "%Y"))
 ```
 
-#### Checking avilibity of data
+### Checking avilibity of data
 
 ```{r}
 options(scipen=5)
@@ -46,8 +80,9 @@ hist(stormdata$YEAR, xlab = "Year", ylab = "Frequency of events", main = "Distri
 This plot shows that most of the data was logged between 1995 and 2010. This time period will be used For further analysis.
 
 
+## Results
 
-#### What type of events caused the most fatalities and injuries (1995-2010)
+### What type of events caused the most fatalities and injuries (1995-2010)
 ```{r}
 stormdata95 <- stormdata[stormdata$YEAR >= 1995,]
 
@@ -63,7 +98,8 @@ injuriesByEvent <- aggregate(INJURIES ~ EVTYPE, stormdata95, FUN=sum)
 injuriesByEvent <- injuriesByEvent[rev(order(injuriesByEvent$INJURIES)),]
 injuriesByEvent$EVTYPE <- factor(injuriesByEvent$EVTYPE, levels = injuriesByEvent$EVTYPE)
 ```
-#### Top 10 events caused health damage (general damage/injuries/fatalities)
+
+### Top 10 events caused health damage (general damage/injuries/fatalities)
 ```{r}
 # Health damage:
 print(head(healthDamageByEvent, 10), row.names = FALSE)
@@ -73,8 +109,7 @@ print(head(fatalitiesByEvent, 10), row.names = FALSE)
 print(head(injuriesByEvent, 10), row.names = FALSE)
 ```
 
-
-#### Combined comparison of fatal and non-fatal injuries
+### Combined comparison of fatal and non-fatal injuries
 ```{r}
 library(ggplot2)
 topNCause <- 10
@@ -89,12 +124,34 @@ combined <- unique(unlist(list(injuries, fatalities)))
 healthDamagePlot <- merge(x=injuriesByEvent[injuriesByEvent$EVTYPE %in% combined,], y=fatalitiesByEvent[fatalitiesByEvent$EVTYPE %in% combined,], by="EVTYPE")
 healthDamagePlot <- healthDamagePlot[rev(order(healthDamagePlot$INJURIES)),]
 
-ggplot(healthDamagePlot, aes(EVTYPE)) + geom_bar(aes(y=FATALITIES+INJURIES), stat="identity", fill = "darkorange") + geom_bar(aes(y=FATALITIES), stat="identity", fill = "darkred") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Event Type") + ylab("Fatalities + Injuries") + ggtitle("Fatalities and injuries caused by various event types (1995-2010)")
+ggplot(healthDamagePlot, aes(EVTYPE)) + geom_bar(aes(y=FATALITIES+INJURIES), stat="identity", fill = "darkorange") + geom_bar(aes(y=FATALITIES), stat="identity", fill = "darkred") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Event Type") + ylab("Fatalities + Injuries") + ggtitle("Fatalities and injuries caused by Weather events (1995-2010)")
 
 ```
 
+### Which type of events had the greatest economic consequences?
+```{r}
+propdmgByEvent <- aggregate(PROPDMG ~ EVTYPE, stormdata95, FUN=sum)
+propdmgByEvent <- propdmgByEvent[rev(order(propdmgByEvent$PROPDMG)),]
+propdmgByEvent$EVTYPE <- factor(propdmgByEvent$EVTYPE, levels = propdmgByEvent$EVTYPE)
+cropdmgByEvent <- aggregate(CROPDMG ~ EVTYPE, stormdata95, FUN=sum)
+cropdmgByEvent <- cropdmgByEvent[rev(order(cropdmgByEvent$CROPDMG)),]
+cropdmgByEvent$EVTYPE <- factor(cropdmgByEvent$EVTYPE, levels = cropdmgByEvent$EVTYPE)
+```
 
+### Top 10 events caused propery and crop damage (1995-2010)
+```{r}
+# Property damage:
+print(head(propdmgByEvent, 10), row.names = FALSE)
+# Crop damage:
+print(head(cropdmgByEvent, 10), row.names = FALSE)
 
-## Results
+#Plot results
+p1 <- ggplot(propdmgByEvent[1:10,], aes(EVTYPE, PROPDMG/1000000)) + geom_bar(stat="identity", fill = "darkorange") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Event Type") + ylab("Property damage [million $]") + ggtitle("Property damage by Weather events [million $] (1995-2010)")
 
+p2 <- ggplot(cropdmgByEvent[1:10,], aes(EVTYPE, CROPDMG/1000000)) + geom_bar(stat="identity", fill = "darkgreen") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Event Type") + ylab("Crop damage [million $]") + ggtitle("Crop damage by Weather events [million $] (1995-2010)")
+
+multiplot()
+library(gridExtra)
+grid.arrange(p1, p2, ncol=2)
+```
 
